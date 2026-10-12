@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moped Speedometer Simulator</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #090d12;
+    --panel: #131c27;
+    --line: #293847;
+    --text: #edf5ff;
+    --muted: #91a3b8;
+    --green: #50e3a4;
+    --red: #e94d59;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(ellipse at top, #202c39, var(--bg) 75%);
+    color: var(--text);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+  main { width: min(100%, 520px); padding: 20px 16px; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .eyebrow { font-size: 11px; letter-spacing: 3px; color: var(--muted); }
+  h1 { font-size: 22px; letter-spacing: 1px; margin: 4px 0 0; }
+  #mode {
+    font-size: 11px; color: var(--green); border: 1px solid #287c5b;
+    border-radius: 20px; padding: 6px 10px; white-space: nowrap;
+  }
+  .dial-wrap { display: flex; justify-content: center; margin: 12px 0 0; }
+  svg { width: 100%; max-width: 370px; height: auto; overflow: visible; }
+  .odometer { display: flex; justify-content: space-between; padding: 0 8px; color: var(--muted); font-size: 13px; }
+  #odo { color: var(--text); font-variant-numeric: tabular-nums; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-top: 16px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .label { color: var(--muted); font-size: 12px; letter-spacing: 2px; }
+  #throttlePct { color: var(--green); font-weight: 800; }
+  input[type="range"] { width: 100%; margin: 18px 0 8px; accent-color: var(--green); }
+  .range-labels { display: flex; justify-content: space-between; color: #687d91; font-size: 10px; }
+  .buttons, .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+  button { border-radius: 10px; padding: 12px 8px; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+  button:focus-visible, input:focus-visible { outline: 2px solid white; outline-offset: 3px; }
+  #gas { background: var(--green); color: #06130d; border: 0; }
+  #brake { background: var(--red); color: white; border: 0; }
+  .secondary { background: #202e3c; color: var(--text); border: 1px solid #3b4e60; font-size: 13px; }
+  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 12px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; text-align: center; padding: 12px 5px; min-width: 0; }
+  .stat .label { font-size: 10px; letter-spacing: 1px; }
+  .value { font-size: 19px; font-weight: 800; margin-top: 5px; overflow-wrap: anywhere; }
+  footer { text-align: center; color: #60768a; font-size: 10px; margin-top: 16px; }
+  @media (max-width: 360px) {
+    main { padding: 14px 10px; }
+    h1 { font-size: 19px; }
+    .panel { padding: 12px; }
+    .value { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <div class="eyebrow">ELECTRIC MOPED</div>
+      <h1>SPEEDOMETER</h1>
+    </div>
+    <div id="mode" aria-live="polite">READY</div>
+  </header>
+
+  <div class="dial-wrap">
+    <svg id="dial" viewBox="0 0 340 310" role="img" aria-label="Animated speedometer from 0 to 60">
+      <defs>
+        <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#35495c"/>
+          <stop offset="1" stop-color="#111923"/>
+        </linearGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <circle cx="170" cy="157" r="133" fill="url(#ring)" stroke="#46596b" stroke-width="2"/>
+      <circle cx="170" cy="157" r="119" fill="#0b1119" stroke="#1c2a38" stroke-width="2"/>
+      <g id="ticks"></g>
+      <g id="labels"></g>
+      <path id="activeArc" fill="none" stroke="#50e3a4" stroke-width="5" stroke-linecap="round" filter="url(#glow)"/>
+      <text id="speedText" x="170" y="165" fill="#f4f8ff" text-anchor="middle" font-size="65" font-weight="800">0</text>
+      <text id="unitText" x="170" y="190" fill="#91a3b8" text-anchor="middle" font-size="14" letter-spacing="4">MPH</text>
+      <text x="170" y="221" fill="#62788d" text-anchor="middle" font-size="10" letter-spacing="2">MAX SPEED 60</text>
+      <circle cx="170" cy="157" r="5" fill="#50e3a4"/>
+    </svg>
+  </div>
+
+  <div class="odometer">
+    <span>ODOMETER</span>
+    <span id="odo">0000.0 mi</span>
+  </div>
+
+  <section class="panel">
+    <div class="row">
+      <span class="label">THROTTLE</span>
+      <span id="throttlePct">0%</span>
+    </div>
+    <input id="throttle" aria-label="Throttle" type="range" min="0" max="100" value="0">
+    <div class="range-labels"><span>COAST</span><span>FULL THROTTLE</span></div>
+    <div class="buttons">
+      <button id="gas">▲ ACCELERATE</button>
+      <button id="brake">▼ BRAKE</button>
+    </div>
+    <div class="buttons">
+      <button id="units" class="secondary">Switch to km/h</button>
+      <button id="reset" class="secondary">Reset ride</button>
+    </div>
+  </section>
+
+  <section class="stats" aria-label="Ride statistics">
+    <div class="stat"><div class="label">0–60 TIME</div><div id="timer" class="value">0.0 s</div></div>
+    <div class="stat"><div class="label">BATTERY</div><div id="battery" class="value">100%</div></div>
+    <div class="stat"><div class="label">POWER</div><div id="power" class="value">0%</div></div>
+  </section>
+  <footer>SIMULATION ONLY · NOT A REAL VEHICLE SPEEDOMETER</footer>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const NS = "http://www.w3.org/2000/svg";
+  const cx = 170, cy = 157;
+
+  function point(value, radius) {
+    const angle = (-135 + value / 60 * 270) * Math.PI / 180;
+    return [cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)];
+  }
+
+  function arcPath(start, end, radius) {
+    if (end <= start) return "";
+    const a = point(start, radius), b = point(end, radius);
+    const largeArc = end - start > 180 ? 1 : 0;
+    return `M ${a[0]} ${a[1]} A ${radius} ${radius} 0 ${largeArc} 1 ${b[0]} ${b[1]}`;
+  }
+
+  // Draw speedometer ticks and labels from 0 to 60 mph.
+  for (let value = 0; value <= 60; value += 2) {
+    const major = value % 10 === 0;
+    const p1 = point(value, major ? 103 : 110);
+    const p2 = point(value, major ? 119 : 117);
+    const tick = document.createElementNS(NS, "line");
+    tick.setAttribute("x1", p1[0]);
+    tick.setAttribute("y1", p1[1]);
+    tick.setAttribute("x2", p2[0]);
+    tick.setAttribute("y2", p2[1]);
+    tick.setAttribute("stroke", major ? "#e7f0fa" : "#526578");
+    tick.setAttribute("stroke-width", major ? "2.5" : "1.2");
+    $("ticks").appendChild(tick);
+
+    if (major) {
+      const p = point(value, 89);
+      const label = document.createElementNS(NS, "text");
+      label.setAttribute("x", p[0]);
+      label.setAttribute("y", p[1] + 5);
+      label.setAttribute("fill", "#bdcbd9");
+      label.setAttribute("font-size", "12");
+      label.setAttribute("font-weight", "600");
+      label.setAttribute("text-anchor", "middle");
+      label.textContent = value;
+      $("labels").appendChild(label);
+    }
+  }
+
+  let speed = 0;
+  let throttle = 0;
+  let kmh = false;
+  let battery = 100;
+  let odometer = 0;
+  let elapsed = 0;
+  let started = false;
+  let braking = false;
+  let lastFrame = performance.now();
+
+  function update(now) {
+    const dt = Math.min((now - lastFrame) / 1000, 0.06);
+    lastFrame = now;
+
+    if (braking) {
+      speed = Math.max(0, speed - 24 * dt);
+    } else if (throttle > 0 && battery > 0) {
+      speed = Math.min(60, speed + throttle / 100 * 9 * dt);
+      if (speed > 0) started = true;
+    } else {
+      speed = Math.max(0, speed - 1.1 * dt);
+    }
+
+    if (started && speed < 60) elapsed += dt;
+    odometer += speed * dt / 3600;
+    battery = Math.max(0, battery - (throttle / 100) * dt * 0.008);
+
+    $("speedText").textContent = Math.round(kmh ? speed * 1.609344 : speed);
+    $("unitText").textContent = kmh ? "KM/H" : "MPH";
+    $("activeArc").setAttribute("d", arcPath(0, speed, 126));
+    $("activeArc").setAttribute("stroke", speed >= 50 ? "#ffb454" : "#50e3a4");
+    $("odo").textContent =
+      String(Math.floor(odometer)).padStart(4, "0") + "." +
+      Math.floor((odometer % 1) * 10) + " mi";
+    $("timer").textContent = started ? elapsed.toFixed(1) + " s" : "0.0 s";
+    $("battery").textContent = Math.round(battery) + "%";
+    $("power").textContent = Math.round(throttle) + "%";
+    $("mode").textContent = braking ? "BRAKING" :
+      speed >= 59.95 ? "MAX SPEED" : speed > 0 ? "RIDING" : "READY";
+
+    requestAnimationFrame(update);
+  }
+
+  $("throttle").addEventListener("input", event => {
+    throttle = Number(event.target.value);
+    braking = false;
+    $("throttlePct").textContent = throttle + "%";
+  });
+
+  // Press and hold accelerate for full throttle; release to return to slider setting.
+  $("gas").addEventListener("pointerdown", () => {
+    throttle = 100;
+    braking = false;
+    $("throttle").value = 100;
+    $("throttlePct").textContent = "100%";
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach(type => {
+    $("gas").addEventListener(type, () => {
+      throttle = Number($("throttle").value);
+    });
+  });
+
+  // Press and hold brake to slow down quickly.
+  $("brake").addEventListener("pointerdown", () => {
+    braking = true;
+    throttle = 0;
+    $("throttle").value = 0;
+    $("throttlePct").textContent = "0%";
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach(type => {
+    $("brake").addEventListener(type, () => { braking = false; });
+  });
+
+  $("units").addEventListener("click", () => {
+    kmh = !kmh;
+    $("units").textContent = kmh ? "Switch to mph" : "Switch to km/h";
+  });
+
+  $("reset").addEventListener("click", () => {
+    speed = 0;
+    throttle = 0;
+    kmh = false;
+    battery = 100;
+    odometer = 0;
+    elapsed = 0;
+    started = false;
+    braking = false;
+    $("throttle").value = 0;
+    $("throttlePct").textContent = "0%";
+    $("units").textContent = "Switch to km/h";
+  });
+
+  requestAnimationFrame(update);
+})();
+</script>
+</body>
+</html>
