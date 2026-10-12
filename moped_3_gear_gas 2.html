@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3-Gear Gas Moped Speedometer</title>
+<style>
+:root{color-scheme:dark;--bg:#090d12;--panel:#131c27;--line:#293847;--text:#edf5ff;--muted:#91a3b8;--green:#50e3a4;--red:#e94d59;--amber:#ffb454}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at top,#202c39,var(--bg) 75%);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;justify-content:center}
+main{width:min(100%,520px);padding:20px 16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.eyebrow{font-size:11px;letter-spacing:3px;color:var(--muted)}
+h1{font-size:22px;letter-spacing:1px;margin:4px 0 0}
+#mode{font-size:11px;color:var(--green);border:1px solid #287c5b;border-radius:20px;padding:6px 10px;white-space:nowrap}
+.dial-wrap{display:flex;justify-content:center;margin:12px 0 0}
+svg{width:100%;max-width:370px;height:auto;overflow:visible}
+.odometer{display:flex;justify-content:space-between;padding:0 8px;color:var(--muted);font-size:13px}
+#odo{color:var(--text);font-variant-numeric:tabular-nums}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:16px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.label{color:var(--muted);font-size:12px;letter-spacing:2px}
+input[type=range]{width:100%;margin:18px 0 8px;accent-color:var(--green)}
+.range-labels{display:flex;justify-content:space-between;color:#687d91;font-size:10px}
+.buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+button{border-radius:10px;padding:12px 8px;font:inherit;font-weight:700;cursor:pointer;touch-action:manipulation}
+button:focus-visible,input:focus-visible{outline:2px solid white;outline-offset:3px}
+#gas{background:var(--green);color:#06130d;border:0}
+#brake{background:var(--red);color:white;border:0}
+.secondary{background:#202e3c;color:var(--text);border:1px solid #3b4e60;font-size:13px}
+.gears{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:12px}
+.gear{background:#202e3c;color:var(--text);border:1px solid #3b4e60;padding:13px 6px}
+.gear.active{background:var(--green);color:#06130d;border-color:var(--green)}
+.gear small{display:block;font-size:10px;font-weight:600;margin-top:3px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;text-align:center;padding:12px 5px;min-width:0}
+.stat .label{font-size:10px;letter-spacing:1px}
+.value{font-size:19px;font-weight:800;margin-top:5px;overflow-wrap:anywhere}
+footer{text-align:center;color:#60768a;font-size:10px;margin-top:16px}
+@media(max-width:360px){main{padding:14px 10px}h1{font-size:19px}.panel{padding:12px}.value{font-size:16px}}
+</style>
+</head>
+<body>
+<main>
+<header><div><div class="eyebrow">GAS-POWERED MOPED</div><h1>3-GEAR SPEEDOMETER</h1></div><div id="mode" aria-live="polite">ENGINE OFF</div></header>
+<div class="dial-wrap">
+<svg viewBox="0 0 340 310" role="img" aria-label="Speedometer from zero to 60 miles per hour">
+<defs><linearGradient id="ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#35495c"/><stop offset="1" stop-color="#111923"/></linearGradient><filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+<circle cx="170" cy="157" r="133" fill="url(#ring)" stroke="#46596b" stroke-width="2"/><circle cx="170" cy="157" r="119" fill="#0b1119" stroke="#1c2a38" stroke-width="2"/>
+<g id="ticks"></g><g id="labels"></g>
+<path id="trackArc" fill="none" stroke="#263746" stroke-width="7" stroke-linecap="round"/>
+<path id="greenArc" fill="none" stroke="#50e3a4" stroke-width="7" stroke-linecap="butt"/>
+<path id="yellowArc" fill="none" stroke="#ffcc55" stroke-width="7" stroke-linecap="butt"/>
+<path id="redArc" fill="none" stroke="#ff5964" stroke-width="7" stroke-linecap="butt"/>
+<path id="activeArc" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+<text id="speedText" x="170" y="165" fill="#f4f8ff" text-anchor="middle" font-size="65" font-weight="800">0</text>
+<text id="unitText" x="170" y="190" fill="#91a3b8" text-anchor="middle" font-size="14" letter-spacing="4">MPH</text>
+<text x="170" y="221" fill="#62788d" text-anchor="middle" font-size="10" letter-spacing="2">MAX SPEED 60</text>
+</svg></div>
+<div class="odometer"><span>ODOMETER</span><span id="odo">0000.0 mi</span></div>
+
+<section class="panel">
+<div class="row"><span class="label">ENGINE</span><strong id="engineStatus">OFF</strong></div>
+<div class="buttons"><button id="engineBtn" class="secondary">START ENGINE</button><button id="units" class="secondary">Switch to km/h</button></div>
+<div class="row" style="margin-top:18px"><span class="label">THROTTLE</span><strong id="throttlePct" style="color:var(--green)">0%</strong></div>
+<input id="throttle" aria-label="Throttle" type="range" min="0" max="100" value="0">
+<div class="range-labels"><span>IDLE</span><span>FULL THROTTLE</span></div>
+<div class="row" style="margin-top:20px"><span class="label">GEAR SELECTOR</span><strong id="gearReadout">GEAR 1</strong></div>
+<div id="shiftStatus" style="margin-top:8px;padding:9px 10px;border-radius:8px;background:#0d151e;color:#91a3b8;font-size:12px;text-align:center">GEAR 1 · LOW RANGE</div>
+<div class="gears">
+<button class="gear active" data-gear="1">1<small>LOW · 0–20 MPH</small></button>
+<button class="gear" data-gear="2">2<small>MID · 0–40 MPH</small></button>
+<button class="gear" data-gear="3">3<small>HIGH · 0–60 MPH</small></button>
+</div>
+<div class="buttons"><button id="gas">▲ ACCELERATE</button><button id="brake">▼ BRAKE</button></div>
+<div class="buttons"><button id="reset" class="secondary">Reset ride</button><button id="refuel" class="secondary">Refuel tank</button></div>
+</section>
+
+<section class="stats">
+<div class="stat"><div class="label">GEAR</div><div id="gearStat" class="value">1</div></div>
+<div class="stat"><div class="label">FUEL</div><div id="fuel" class="value">100%</div></div>
+<div class="stat"><div class="label">RPM</div><div id="rpm" class="value">1,400</div></div>
+</section>
+<div class="stats">
+<div class="stat"><div class="label">RIDE TIME</div><div id="timer" class="value">0.0 s</div></div>
+<div class="stat"><div class="label">POWER</div><div id="power" class="value">0%</div></div>
+<div class="stat"><div class="label">TOP SPEED</div><div id="topSpeed" class="value">0 MPH</div></div>
+</div>
+<footer>SIMULATION ONLY · FICTIONAL ENGINE AND GEAR RATIOS</footer>
+</main>
+<script>
+(() => {
+const $=id=>document.getElementById(id), NS="http://www.w3.org/2000/svg";
+let speed=0, throttle=0, gear=1, kmh=false, engineOn=false, braking=false;
+let fuel=100, distance=0, elapsed=0, topSpeed=0, last=performance.now(), shiftFlash=0;
+function point(v,r){const a=(-135+v/60*270)*Math.PI/180;return[170+r*Math.cos(a),157+r*Math.sin(a)]}
+function arcPath(start,end,r){
+ if(end<=start)return "";
+ const a=point(start,r),b=point(end,r);
+ return `M ${a[0]} ${a[1]} A ${r} ${r} 0 ${(end-start)>30?1:0} 1 ${b[0]} ${b[1]}`;
+}
+$("trackArc").setAttribute("d",arcPath(0,60,126));
+$("greenArc").setAttribute("d",arcPath(0,30,126));
+$("yellowArc").setAttribute("d",arcPath(30,48,126));
+$("redArc").setAttribute("d",arcPath(48,60,126));
+function showGearMessage(){
+ const labels={1:"GEAR 1 · LOW RANGE",2:"GEAR 2 · MID RANGE",3:"GEAR 3 · HIGH RANGE"};
+ $("shiftStatus").textContent="⚙ "+labels[gear]+" — SHIFTED";
+ $("shiftStatus").style.color="#50e3a4";
+ shiftFlash=1.2;
+}
+for(let v=0;v<=60;v+=2){
+ const major=v%10===0,p=point(v,major?103:110),q=point(v,major?119:117);
+ const line=document.createElementNS(NS,"line");
+ [["x1",p[0]],["y1",p[1]],["x2",q[0]],["y2",q[1]],["stroke",major?"#e7f0fa":"#526578"],["stroke-width",major?2.5:1.2]].forEach(([k,val])=>line.setAttribute(k,val));
+ $("ticks").appendChild(line);
+ if(major){const t=point(v,89),label=document.createElementNS(NS,"text");label.setAttribute("x",t[0]);label.setAttribute("y",t[1]+5);label.setAttribute("fill","#bdcbd9");label.setAttribute("font-size","12");label.setAttribute("font-weight","600");label.setAttribute("text-anchor","middle");label.textContent=v;$("labels").appendChild(label)}
+}
+function setGear(n){gear=n;document.querySelectorAll(".gear").forEach(b=>b.classList.toggle("active",+b.dataset.gear===gear));$("gearReadout").textContent="GEAR "+gear;$("gearStat").textContent=gear;$("shiftStatus").textContent=({1:"GEAR 1 · LOW RANGE",2:"GEAR 2 · MID RANGE",3:"GEAR 3 · HIGH RANGE"})[gear];$("shiftStatus").style.color="#91a3b8"}
+document.querySelectorAll(".gear").forEach(b=>b.addEventListener("click",()=>{
+ const next=+b.dataset.gear;
+ if(next!==gear){setGear(next);showGearMessage();}
+}));
+$("engineBtn").addEventListener("click",()=>{
+ engineOn=!engineOn;
+ if(!engineOn){throttle=0;$("throttle").value=0;$("throttlePct").textContent="0%";}
+ $("engineBtn").textContent=engineOn?"STOP ENGINE":"START ENGINE";
+ $("engineStatus").textContent=engineOn?"RUNNING":"OFF";
+});
+$("throttle").addEventListener("input",e=>{throttle=+e.target.value;braking=false;$("throttlePct").textContent=throttle+"%";});
+$("gas").addEventListener("pointerdown",()=>{if(engineOn&&fuel>0){throttle=100;$("throttle").value=100;$("throttlePct").textContent="100%";braking=false}});
+["pointerup","pointerleave","pointercancel"].forEach(e=>$("gas").addEventListener(e,()=>{throttle=+$("throttle").value}));
+$("brake").addEventListener("pointerdown",()=>{braking=true;throttle=0;$("throttle").value=0;$("throttlePct").textContent="0%"});
+["pointerup","pointerleave","pointercancel"].forEach(e=>$("brake").addEventListener(e,()=>braking=false));
+$("units").addEventListener("click",()=>{kmh=!kmh;$("units").textContent=kmh?"Switch to mph":"Switch to km/h"});
+$("refuel").addEventListener("click",()=>fuel=100);
+$("reset").addEventListener("click",()=>{speed=throttle=distance=elapsed=topSpeed=0;fuel=100;gear=1;kmh=braking=engineOn=false;$("throttle").value=0;$("throttlePct").textContent="0%";$("engineBtn").textContent="START ENGINE";$("engineStatus").textContent="OFF";$("units").textContent="Switch to km/h";setGear(1)});
+function frame(now){
+ const dt=Math.min((now-last)/1000,.06);last=now;
+ const limits={1:20,2:40,3:60}, gears={1:9,2:5.5,3:3.8};
+ const max=limits[gear];
+ // Gentle acceleration: each gear has a different pull and a clear speed ceiling.
+ if(braking)speed=Math.max(0,speed-18*dt);
+ else if(engineOn&&throttle>0&&fuel>0&&speed<max){
+   const pull={1:2.2,2:1.45,3:0.95}[gear];
+   speed=Math.min(max,speed+(throttle/100)*pull*dt);
+ } else speed=Math.max(0,speed-(engineOn?0.18:1.5)*dt);
+ if(shiftFlash>0){shiftFlash=Math.max(0,shiftFlash-dt);if(shiftFlash===0){$("shiftStatus").style.color="#91a3b8";$("shiftStatus").textContent=({1:"GEAR 1 · LOW RANGE",2:"GEAR 2 · MID RANGE",3:"GEAR 3 · HIGH RANGE"})[gear];}}
+ if(engineOn&&throttle>0&&speed>0){fuel=Math.max(0,fuel-(0.0009+throttle*0.000018)*dt)}
+ if(speed>0)elapsed+=dt;
+ distance+=speed*dt/3600;topSpeed=Math.max(topSpeed,speed);
+ const shown=Math.round(kmh?speed*1.609344:speed);
+ $("speedText").textContent=shown;$("unitText").textContent=kmh?"KM/H":"MPH";
+ $("activeArc").setAttribute("d",arcPath(0,speed,126));
+ $("odo").textContent=String(Math.floor(distance)).padStart(4,"0")+"."+Math.floor(distance%1*10)+" mi";
+ $("fuel").textContent=Math.round(fuel)+"%";$("power").textContent=engineOn?Math.round(throttle)+"%":"0%";
+ const rpm=engineOn?Math.round(1400+throttle*24+(speed/Math.max(1,max))*gear*700):0;
+ $("rpm").textContent=rpm.toLocaleString();$("timer").textContent=elapsed.toFixed(1)+" s";
+ $("topSpeed").textContent=Math.round(kmh?topSpeed*1.609344:topSpeed)+(kmh?" KM/H":" MPH");
+ $("mode").textContent=braking?"BRAKING":!engineOn?"ENGINE OFF":fuel<=0?"OUT OF FUEL":speed>=59.95?"TOP SPEED":"GEAR "+gear;
+ requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
